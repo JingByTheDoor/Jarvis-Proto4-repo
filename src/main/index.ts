@@ -5,11 +5,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import { config } from 'dotenv';
-import { IPC_CHANNELS, Action, RunEvent, ExecutionState } from '../shared/types';
+import { IPC_CHANNELS, Action, RunEvent } from '../shared/types';
 import { PlanEngine } from './engine/plan-engine';
 import { ApprovalEngine } from './engine/approval-engine';
 import { RunEventEmitter } from './engine/event-emitter';
 import { executeToolAction } from './tools/tool-router';
+import { createLLMProvider } from './adapters/adapter-factory';
+import { saveMessage, getContext } from './memory/memory-store';
 
 // Load .env from project root
 config({ path: path.resolve(__dirname, '..', '..', '.env') });
@@ -17,6 +19,7 @@ config({ path: path.resolve(__dirname, '..', '..', '.env') });
 let mainWindow: BrowserWindow | null = null;
 const approvalEngine = new ApprovalEngine();
 const emitter = new RunEventEmitter();
+const llmProvider = createLLMProvider();
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -64,12 +67,25 @@ ipcMain.handle(IPC_CHANNELS.SUBMIT_GOAL, async (_event, goal: string) => {
     executeTool: executeToolAction,
   });
 
-  // Build a minimal demo plan (in production, an LLM adapter would propose actions)
-  const plan = engine.buildPlan(goal, []);
+  // Save user goal to memory
+  saveMessage('user', goal);
+
+  // Get conversation context
+  const context = getContext();
+
+  // Use LLM adapter to propose actions; fall back to empty plan if unavailable
+  let plan = await llmProvider.generatePlan(goal, context);
+  if (!plan.actions.length) {
+    plan = engine.buildPlan(goal, []);
+  }
 
   mainWindow?.webContents.send(IPC_CHANNELS.ON_STATE_CHANGE, engine.state);
   const log = await engine.executePlan(plan);
   mainWindow?.webContents.send(IPC_CHANNELS.ON_STATE_CHANGE, engine.state);
+
+  // Save assistant summary to memory
+  saveMessage('assistant', `Plan executed: ${plan.summary}. State: ${engine.state}`);
+
   return log;
 });
 
