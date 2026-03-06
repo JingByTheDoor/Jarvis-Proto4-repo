@@ -11,10 +11,10 @@
 - [x] Unit tests for execution core and tools (44 tests, all passing)
 - [x] Build verification
 
-## Phase 2 — Integration (future)
-- [ ] LLM provider adapter (OpenAI / Anthropic)
-- [ ] Memory adapter (local file-based)
-- [ ] MCP bridge tools
+## Phase 2 — Integration (complete)
+- [x] LLM provider adapter (OpenAI / Anthropic)
+- [x] Memory adapter (local file-based)
+- [x] MCP bridge tools
 
 ## Phase 3 — Polish (future)
 - [ ] Boot sequence animation

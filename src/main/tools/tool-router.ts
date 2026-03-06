@@ -4,10 +4,12 @@
 import { Action, ToolResult } from '../../shared/types';
 import { fileRead, fileWrite, fileList, fileDelete } from './file-tools';
 import { shellExec } from './shell-tools';
+import { mcpBridge } from './mcp-bridge';
 
 /**
  * Execute a tool action based on its type.
- * Returns a ToolResult.
+ * Synchronous tools return ToolResult directly.
+ * Async tools (mcp_call) must use executeToolAction.
  */
 export function routeTool(action: Action): ToolResult {
   const args = action.args;
@@ -45,7 +47,16 @@ export function routeTool(action: Action): ToolResult {
 
 /**
  * Async wrapper for use in PlanEngine.executeTool callback.
+ * Handles mcp_call in addition to the synchronous tools in routeTool.
  */
 export async function executeToolAction(action: Action): Promise<ToolResult> {
+  if (action.type === 'mcp_call') {
+    const args = action.args;
+    return mcpBridge.callTool(
+      args['server'] as string,
+      args['tool'] as string,
+      (args['args'] as Record<string, unknown>) ?? {},
+    );
+  }
   return routeTool(action);
 }
