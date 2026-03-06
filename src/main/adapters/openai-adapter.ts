@@ -10,6 +10,7 @@ import {
   requiresApproval,
 } from '../engine/risk-evaluator';
 import { LLMProvider } from './llm-provider';
+import { CHAT_SYSTEM_PROMPT } from './prompts';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
@@ -40,9 +41,15 @@ export class OpenAIAdapter implements LLMProvider {
   private apiKey: string;
   private model: string;
 
+  readonly providerName = 'openai';
+
   constructor() {
     this.apiKey = process.env['OPENAI_API_KEY'] ?? '';
     this.model = process.env['OPENAI_MODEL'] ?? DEFAULT_MODEL;
+  }
+
+  get isConfigured(): boolean {
+    return this.apiKey.length > 0;
   }
 
   async generatePlan(goal: string, context?: unknown): Promise<Plan> {
@@ -88,6 +95,48 @@ export class OpenAIAdapter implements LLMProvider {
         goal,
         `OpenAI request failed: ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+  }
+
+  async chat(message: string, context?: unknown): Promise<string> {
+    const messages: { role: string; content: string }[] = [
+      { role: 'system', content: CHAT_SYSTEM_PROMPT },
+    ];
+
+    if (context) {
+      messages.push({
+        role: 'system',
+        content: `Context:\n${JSON.stringify(context)}`,
+      });
+    }
+
+    messages.push({ role: 'user', content: message });
+
+    try {
+      const response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return `OpenAI API error ${response.status}: ${errText}`;
+      }
+
+      const data = (await response.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      return data.choices?.[0]?.message?.content ?? '';
+    } catch (err) {
+      return `OpenAI request failed: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 }

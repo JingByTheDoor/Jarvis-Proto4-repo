@@ -10,17 +10,31 @@ import { buildErrorPlan } from './openai-adapter';
 
 /** Fallback provider when no LLM is configured. */
 class NullProvider implements LLMProvider {
+  readonly providerName = 'none';
+  readonly isConfigured = false;
+
   async generatePlan(goal: string): Promise<Plan> {
     return {
       id: uuid(),
       user_goal: goal,
-      summary: 'No LLM configured. Set LLM_PROVIDER in .env to enable AI planning.',
+      summary:
+        'No LLM provider configured. Copy .env.example to .env and set ' +
+        'LLM_PROVIDER=openai (with your OPENAI_API_KEY) or ' +
+        'LLM_PROVIDER=anthropic (with your ANTHROPIC_API_KEY).',
       risk_level: 'low',
       requires_approval: false,
       actions: [],
       created_at: new Date().toISOString(),
       policy_snapshot: 'v0.1.0',
     };
+  }
+
+  async chat(_message: string): Promise<string> {
+    return (
+      'No LLM provider configured. Copy .env.example to .env and set ' +
+      'LLM_PROVIDER=openai (with your OPENAI_API_KEY) or ' +
+      'LLM_PROVIDER=anthropic (with your ANTHROPIC_API_KEY).'
+    );
   }
 }
 

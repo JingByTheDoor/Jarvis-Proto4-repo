@@ -39,6 +39,19 @@ function createWindow(): void {
   const rendererPath = path.join(__dirname, '..', 'renderer', 'index.html');
   mainWindow.loadFile(rendererPath);
 
+  // Emit provider status once the renderer is ready to receive events
+  mainWindow.webContents.once('did-finish-load', () => {
+    const providerEvent: RunEvent = {
+      run_id: 'startup',
+      kind: 'agent_message',
+      timestamp: new Date().toISOString(),
+      payload: llmProvider.isConfigured
+        ? `LLM provider active: ${llmProvider.providerName}`
+        : `No LLM provider configured. Copy .env.example to .env and set LLM_PROVIDER=openai (with your OPENAI_API_KEY) or LLM_PROVIDER=anthropic (with your ANTHROPIC_API_KEY).`,
+    };
+    mainWindow?.webContents.send(IPC_CHANNELS.ON_EVENT, providerEvent);
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -73,10 +86,43 @@ ipcMain.handle(IPC_CHANNELS.SUBMIT_GOAL, async (_event, goal: string) => {
   // Get conversation context
   const context = getContext();
 
-  // Use LLM adapter to propose actions; fall back to empty plan if unavailable
-  let plan = await llmProvider.generatePlan(goal, context);
+  // Use LLM adapter to propose actions
+  const plan = await llmProvider.generatePlan(goal, context);
+
   if (!plan.actions.length) {
-    plan = engine.buildPlan(goal, []);
+    // Surface the reason (error or "no actions needed") to the user
+    const summaryEvent: RunEvent = {
+      run_id: 'goal',
+      kind: llmProvider.isConfigured ? 'agent_message' : 'run_error',
+      timestamp: new Date().toISOString(),
+      payload: plan.summary,
+    };
+    mainWindow?.webContents.send(IPC_CHANNELS.ON_EVENT, summaryEvent);
+
+    // For a configured provider, try a conversational reply
+    if (llmProvider.isConfigured) {
+      const reply = await llmProvider.chat(goal, context);
+      if (reply) {
+        const chatEvent: RunEvent = {
+          run_id: 'goal',
+          kind: 'agent_message',
+          timestamp: new Date().toISOString(),
+          payload: reply,
+        };
+        mainWindow?.webContents.send(IPC_CHANNELS.ON_EVENT, chatEvent);
+      }
+    }
+
+    saveMessage('assistant', plan.summary);
+    return {
+      run_id: 'goal',
+      plan_id: plan.id,
+      events: [],
+      final_result: { state: 'completed' },
+      artifacts: [],
+      started_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
+    };
   }
 
   mainWindow?.webContents.send(IPC_CHANNELS.ON_STATE_CHANGE, engine.state);
