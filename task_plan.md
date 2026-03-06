@@ -1,15 +1,15 @@
 # JARVIS Task Plan
 
-## Phase 1 — Foundation (current)
+## Phase 1 — Foundation (complete)
 - [x] Project scaffolding (package.json, tsconfig, webpack, .gitignore)
 - [x] Single source of truth docs (constitution.md, task_plan.md, findings.md, progress.md)
-- [ ] Core TypeScript types/schemas
-- [ ] Execution core (plan engine, risk evaluator, approval engine, event emitter, run-log persistence)
-- [ ] Deterministic tools (file tools, shell tools)
-- [ ] Electron main + preload bridge
-- [ ] React renderer (terminal-style operator console UI)
-- [ ] Unit tests for execution core and tools
-- [ ] Build verification
+- [x] Core TypeScript types/schemas (`src/shared/types.ts`)
+- [x] Execution core (plan engine, risk evaluator, approval engine, event emitter, run-log persistence)
+- [x] Deterministic tools (file tools, shell tools, tool router)
+- [x] Electron main + preload bridge
+- [x] React renderer (terminal-style operator console UI)
+- [x] Unit tests for execution core and tools (44 tests, all passing)
+- [x] Build verification
 
 ## Phase 2 — Integration (future)
 - [ ] LLM provider adapter (OpenAI / Anthropic)
@@ -22,4 +22,4 @@
 - [ ] Remote deployment (optional, Railway)
 
 ## Next Step
-Complete Phase 1: core types → execution core → tools → Electron shell → React UI → tests.
+Begin Phase 2: LLM provider adapter → memory adapter → MCP bridge tools.
