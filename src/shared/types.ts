@@ -31,7 +31,8 @@ export type EventKind =
   | 'tool_output'
   | 'approval_needed'
   | 'run_complete'
-  | 'run_error';
+  | 'run_error'
+  | 'agent_message';
 
 /** UI event categories rendered in the console. */
 export type UIEventCategory =

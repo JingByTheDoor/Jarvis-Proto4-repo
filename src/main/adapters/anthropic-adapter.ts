@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 import { Plan } from '../../shared/types';
 import { LLMProvider } from './llm-provider';
 import { parseActionsIntoPlan, buildErrorPlan } from './openai-adapter';
+import { CHAT_SYSTEM_PROMPT } from './prompts';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
@@ -27,9 +28,15 @@ export class AnthropicAdapter implements LLMProvider {
   private apiKey: string;
   private model: string;
 
+  readonly providerName = 'anthropic';
+
   constructor() {
     this.apiKey = process.env['ANTHROPIC_API_KEY'] ?? '';
     this.model = process.env['ANTHROPIC_MODEL'] ?? DEFAULT_MODEL;
+  }
+
+  get isConfigured(): boolean {
+    return this.apiKey.length > 0;
   }
 
   async generatePlan(goal: string, context?: unknown): Promise<Plan> {
@@ -70,6 +77,43 @@ export class AnthropicAdapter implements LLMProvider {
         goal,
         `Anthropic request failed: ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+  }
+
+  async chat(message: string, context?: unknown): Promise<string> {
+    const userContent = context
+      ? `Context:\n${JSON.stringify(context)}\n\nMessage: ${message}`
+      : message;
+
+    try {
+      const response = await fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': ANTHROPIC_API_VERSION,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 1024,
+          system: CHAT_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return `Anthropic API error ${response.status}: ${errText}`;
+      }
+
+      const data = (await response.json()) as {
+        content?: { type?: string; text?: string }[];
+      };
+
+      const textBlock = data.content?.find((b) => b.type === 'text');
+      return textBlock?.text ?? '';
+    } catch (err) {
+      return `Anthropic request failed: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 }

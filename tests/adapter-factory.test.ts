@@ -39,7 +39,7 @@ describe('createLLMProvider (adapter-factory)', () => {
     const plan = await provider.generatePlan('test goal');
     expect(plan.user_goal).toBe('test goal');
     expect(plan.actions).toHaveLength(0);
-    expect(plan.summary).toContain('No LLM configured');
+    expect(plan.summary).toContain('No LLM');
   });
 
   it('returns a NullProvider when LLM_PROVIDER is unrecognised', async () => {
@@ -47,7 +47,7 @@ describe('createLLMProvider (adapter-factory)', () => {
     const provider = createLLMProvider();
     const plan = await provider.generatePlan('test goal');
     expect(plan.actions).toHaveLength(0);
-    expect(plan.summary).toContain('No LLM configured');
+    expect(plan.summary).toContain('No LLM');
   });
 
   it('NullProvider plan has required fields', async () => {
@@ -59,5 +59,40 @@ describe('createLLMProvider (adapter-factory)', () => {
     expect(plan.policy_snapshot).toBe('v0.1.0');
     expect(plan.risk_level).toBe('low');
     expect(plan.requires_approval).toBe(false);
+  });
+
+  it('NullProvider has providerName "none" and isConfigured false', () => {
+    delete process.env['LLM_PROVIDER'];
+    const provider = createLLMProvider();
+    expect(provider.providerName).toBe('none');
+    expect(provider.isConfigured).toBe(false);
+  });
+
+  it('NullProvider.chat() returns an actionable config message', async () => {
+    delete process.env['LLM_PROVIDER'];
+    const provider = createLLMProvider();
+    const reply = await provider.chat('hello');
+    expect(reply).toContain('No LLM provider configured');
+    expect(reply).toContain('LLM_PROVIDER');
+  });
+
+  it('NullProvider summary includes instructions to configure .env', async () => {
+    delete process.env['LLM_PROVIDER'];
+    const provider = createLLMProvider();
+    const plan = await provider.generatePlan('do something');
+    expect(plan.summary).toContain('LLM_PROVIDER');
+    expect(plan.summary).toContain('.env');
+  });
+
+  it('OpenAIAdapter has providerName "openai"', () => {
+    process.env['LLM_PROVIDER'] = 'openai';
+    const provider = createLLMProvider();
+    expect(provider.providerName).toBe('openai');
+  });
+
+  it('AnthropicAdapter has providerName "anthropic"', () => {
+    process.env['LLM_PROVIDER'] = 'anthropic';
+    const provider = createLLMProvider();
+    expect(provider.providerName).toBe('anthropic');
   });
 });

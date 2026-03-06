@@ -127,6 +127,77 @@ describe('OpenAIAdapter', () => {
       expect(body.model).toBe('gpt-4o-mini');
     });
   });
+
+  describe('providerName and isConfigured', () => {
+    it('has providerName "openai"', () => {
+      const adapter = new OpenAIAdapter();
+      expect(adapter.providerName).toBe('openai');
+    });
+
+    it('isConfigured is true when OPENAI_API_KEY is set', () => {
+      process.env['OPENAI_API_KEY'] = 'sk-test';
+      const adapter = new OpenAIAdapter();
+      expect(adapter.isConfigured).toBe(true);
+    });
+
+    it('isConfigured is false when OPENAI_API_KEY is empty', () => {
+      delete process.env['OPENAI_API_KEY'];
+      const adapter = new OpenAIAdapter();
+      expect(adapter.isConfigured).toBe(false);
+    });
+  });
+
+  describe('chat', () => {
+    it('returns a text reply from the API', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Hello! How can I help?' } }],
+        }),
+      });
+
+      const adapter = new OpenAIAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toBe('Hello! How can I help?');
+    });
+
+    it('includes context in the chat request when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Hi!' } }] }),
+      });
+
+      const adapter = new OpenAIAdapter();
+      await adapter.chat('hello', { recent_messages: [] });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      const contextMsg = body.messages.find(
+        (m: { role: string; content: string }) => m.content.includes('"recent_messages"'),
+      );
+      expect(contextMsg).toBeDefined();
+    });
+
+    it('returns an error string when the API responds with non-OK status', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => 'Unauthorized',
+      });
+
+      const adapter = new OpenAIAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toContain('401');
+      expect(reply).toContain('Unauthorized');
+    });
+
+    it('returns an error string when fetch throws', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+
+      const adapter = new OpenAIAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toContain('Network failure');
+    });
+  });
 });
 
 describe('parseActionsIntoPlan', () => {

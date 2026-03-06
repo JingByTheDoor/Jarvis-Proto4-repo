@@ -126,4 +126,73 @@ describe('AnthropicAdapter', () => {
       expect(plan.actions).toHaveLength(0);
     });
   });
+
+  describe('providerName and isConfigured', () => {
+    it('has providerName "anthropic"', () => {
+      const adapter = new AnthropicAdapter();
+      expect(adapter.providerName).toBe('anthropic');
+    });
+
+    it('isConfigured is true when ANTHROPIC_API_KEY is set', () => {
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-test';
+      const adapter = new AnthropicAdapter();
+      expect(adapter.isConfigured).toBe(true);
+    });
+
+    it('isConfigured is false when ANTHROPIC_API_KEY is empty', () => {
+      delete process.env['ANTHROPIC_API_KEY'];
+      const adapter = new AnthropicAdapter();
+      expect(adapter.isConfigured).toBe(false);
+    });
+  });
+
+  describe('chat', () => {
+    it('returns a text reply from the API', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          content: [{ type: 'text', text: 'Hello there!' }],
+        }),
+      });
+
+      const adapter = new AnthropicAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toBe('Hello there!');
+    });
+
+    it('includes context in the chat request when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ content: [{ type: 'text', text: 'Hi!' }] }),
+      });
+
+      const adapter = new AnthropicAdapter();
+      await adapter.chat('hello', { recent_messages: [] });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      const userMsg = body.messages.find((m: { role: string }) => m.role === 'user');
+      expect(userMsg.content).toContain('Context:');
+    });
+
+    it('returns an error string when the API responds with non-OK status', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => 'Forbidden',
+      });
+
+      const adapter = new AnthropicAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toContain('403');
+      expect(reply).toContain('Forbidden');
+    });
+
+    it('returns an error string when fetch throws', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
+
+      const adapter = new AnthropicAdapter();
+      const reply = await adapter.chat('hello');
+      expect(reply).toContain('Connection refused');
+    });
+  });
 });
